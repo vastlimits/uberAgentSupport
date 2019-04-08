@@ -21,6 +21,7 @@ Function New-uASupportBundle {
             $OperatingSystem = (Get-WmiObject -Class Win32_OperatingSystem).caption
             $DesktopPath = [Environment]::GetFolderPath('Desktop')
             $OSBitness = $env:PROCESSOR_ARCHITECTURE
+            $Processes = @('uberAgent','uAInSessionHelper')
 
             $RegKeysx86 = @(
                 [PSCustomObject]@{Component = 'Service'; Path = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\vast limits' }
@@ -124,6 +125,16 @@ Function New-uASupportBundle {
                 $RegKeyContent = Get-uARegistryItem -Key "$($RegKey.Path)"
                 $RegKeyComponent = "$($RegKey.Component)"
                 Out-File -FilePath "$WorkingDirectory\$RegKeyComponent registry keys.txt" -InputObject $RegKeyContent -Append -NoClobber
+            }
+
+            ###
+            ### running processes
+            ###
+            Write-Verbose 'Collect uberAgent process details' -Verbose
+            Foreach ($Process in $Processes) {
+                $ProcessDetail = Get-uAProcessDetails -ProcessName $Process
+                Write-Verbose "Collect details for process $Process"
+                Out-File -FilePath "$WorkingDirectory\Process details.txt" -InputObject $ProcessDetail -Append -NoClobber
             }
 
             ###
