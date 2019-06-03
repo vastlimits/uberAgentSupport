@@ -18,7 +18,7 @@ Function New-uASupportBundle {
             $UserProfiles = (Get-ChildItem -Path $ProfilesDirectory -Directory -Exclude 'Public').Name
             $WorkingDirectory = "$env:temp\uASupport"
             $PowerShellLog = "$WorkingDirectory\PowerShellTranskript.log"
-            $OperatingSystem = (Get-WmiObject -Class Win32_OperatingSystem).caption
+            $OperatingSystem = (Get-CimInstance -Class Win32_OperatingSystem).caption
             $DesktopPath = [Environment]::GetFolderPath('Desktop')
             $OSBitness = $env:PROCESSOR_ARCHITECTURE
             $Processes = @('uberAgent','uAInSessionHelper')

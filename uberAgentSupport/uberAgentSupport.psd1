@@ -3,7 +3,7 @@
 #
 # Generiert von: uberAgent Support Team
 #
-# Generiert am: 08.04.2019
+# Generiert am: 03.06.2019
 #
 
 @{
@@ -12,7 +12,7 @@
 RootModule = 'uberAgentSupport.psm1'
 
 # Die Versionsnummer dieses Moduls
-ModuleVersion = '1.0.3'
+ModuleVersion = '1.0.4'
 
 # Unterstützte PSEditions
 # CompatiblePSEditions = @()
