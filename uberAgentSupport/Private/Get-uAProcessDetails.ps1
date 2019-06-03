@@ -6,10 +6,17 @@ function Get-uAProcessDetails {
         [string]
         $ProcessName
     )
-    $owners = @{ }
+    $owners = @()
     $ProcessNameExt = $ProcessName + '.exe'
-    Get-WmiObject win32_process -Filter "Name='$ProcessNameExt'" | ForEach-Object { $owners[$_.handle] = $_.getowner().user }
-    Get-Process -Name $ProcessName | Select-Object processname, Id, @{l = "Owner"; e = { $owners[$_.id.tostring()] } }
+    
+    Get-CimInstance Win32_Process -Filter "name = '$ProcessNameExt'" | ForEach-Object {
+       $Owner = (Invoke-CimMethod -InputObject $_ -MethodName GetOwner).user
+       $Id = $_.Handle
+       
+       $Properties = @{Name = "$ProcessName"; Id = $Id; Owner = "$Owner"}
+       $Newobject = New-Object PSObject -Property $Properties
+       $owners += $Newobject
+    }
     
     return $owners
 }
