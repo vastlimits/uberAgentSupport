@@ -22,6 +22,9 @@ Function New-uASupportBundle {
             $DesktopPath = [Environment]::GetFolderPath('Desktop')
             $OSBitness = $env:PROCESSOR_ARCHITECTURE
             $Processes = @('uberAgent','uAInSessionHelper')
+            $UninstallPaths = @('HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
+            $uberAgentInstallDir = ($UninstallPaths | % {Get-ItemProperty $_} | ? Displayname -match "uberAgent").InstallLocation
+            $SplunkUFservice = "SplunkForwarder"
 
             $RegKeysx86 = @(
                 [PSCustomObject]@{Component = 'Service'; Path = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\vast limits' }
@@ -46,7 +49,15 @@ Function New-uASupportBundle {
             )
 
             If ($OSBitness -eq 'AMD64') { $RegKeys = $RegKeysx64 } Else { $RegKeys = $RegKeysx86 }
-
+           
+            If (Get-Service -Name $SplunkUFservice) {
+                $SplunkUFinstalled = $True
+                $SplunkUFInstallDir = ($UninstallPaths | % {Get-ItemProperty $_} | ? Displayname -match "UniversalForwarder").InstallLocation
+                $Processes += 'splunkd'
+            }
+            Else {
+                $SplunkUFinstalled = $False
+            }
             
             # Check for latest module version
             $LatestModuleVersion = $null
@@ -80,6 +91,7 @@ Function New-uASupportBundle {
          
             Write-Verbose "Create working directory $WorkingDirectory" -Verbose
             New-Item -Path $WorkingDirectory -ItemType Directory -Force | Out-Null
+            If($SplunkUFinstalled) {New-Item -Path "$WorkingDirectory\SplunkUniversalForwarder" -ItemType Directory -Force | Out-Null}
          
             ###
             ### log files
@@ -110,6 +122,27 @@ Function New-uASupportBundle {
                 foreach ($UserProfile in $UserProfiles) {
                     Copy-uAItem -Source "$ProfilesDirectory\$UserProfile\AppData\Local\Packages\windows_ie_ac_001\AC\Temp\uberAgentIEExtension.log" -Destination "$WorkingDirectory\uberAgentIEExtension-EPM-$UserProfile.log"
                 }
+            }
+
+            If($SplunkUFinstalled) {
+                Write-Verbose 'Collect Splunk Universal Forwarder logs' -Verbose
+                Copy-uAItem -Source "$SplunkUFInstallDir\var\log\splunk\splunkd.log" -Destination "$WorkingDirectory\SplunkUniversalForwarder\splunkd.log"
+                Copy-uAItem -Source "$SplunkUFInstallDir\var\log\splunk\metrics.log" -Destination "$WorkingDirectory\SplunkUniversalForwarder\metrics.log"
+                Write-Verbose 'Performing uberAgent to Splunk Universal Forwarder connection check' -Verbose
+                Get-NetTCPConnection | Format-Table LocalAddress, LocalPort, RemoteAddress, RemotePort, State, OwningProcess | Out-File -FilePath "$WorkingDirectory\Get-NetTCPConnection.log"
+            }
+
+            ###
+            ### config files
+            ###
+            Write-Verbose 'Collect uberAgent configuration files' -Verbose
+            Copy-uAItem -Source "$env:programdata\vast limits\uberAgent\Configuration\uberAgent.conf" -Destination "$WorkingDirectory\uberAgent.programdata.conf"
+            Copy-uAItem -Source "$uberAgentInstallDir\uberAgent.conf" -Destination "$WorkingDirectory\uberAgent.programfiles.conf"
+
+            If($SplunkUFinstalled) {
+                Write-Verbose 'Collect Splunk Universal Forwarder configuration files' -Verbose
+                Copy-uAItem -Source "$SplunkUFInstallDir\etc\system\local\inputs.conf" -Destination "$WorkingDirectory\SplunkUniversalForwarder\inputs.conf"
+                Copy-uAItem -Source "$SplunkUFInstallDir\etc\system\local\outputs.conf" -Destination "$WorkingDirectory\SplunkUniversalForwarder\outputs.conf"
             }
 
             ###
