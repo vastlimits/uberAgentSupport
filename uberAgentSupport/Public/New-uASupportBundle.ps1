@@ -50,13 +50,13 @@ Function New-uASupportBundle {
 
             If ($OSBitness -eq 'AMD64') { $RegKeys = $RegKeysx64 } Else { $RegKeys = $RegKeysx86 }
            
-            If (Get-Service -Name $SplunkUFservice) {
-                $SplunkUFinstalled = $True
-                $SplunkUFInstallDir = ($UninstallPaths | % {Get-ItemProperty $_} | ? Displayname -match "UniversalForwarder").InstallLocation
-                $Processes += 'splunkd'
+            If ((Get-Service).Name -contains $SplunkUFservice) {
+               $SplunkUFinstalled = $True
+               $SplunkUFInstallDir = ($UninstallPaths | % {Get-ItemProperty $_} | ? Displayname -match "UniversalForwarder").InstallLocation
+               $Processes += 'splunkd'
             }
             Else {
-                $SplunkUFinstalled = $False
+               $SplunkUFinstalled = $False
             }
             
             # Check for latest module version
