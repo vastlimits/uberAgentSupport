@@ -52,7 +52,7 @@ Function New-uASupportBundle {
            
             If ((Get-Service).Name -contains $SplunkUFservice) {
                $SplunkUFinstalled = $True
-               $SplunkUFInstallDir = ($UninstallPaths | % {Get-ItemProperty $_} | ? Displayname -match "UniversalForwarder").InstallLocation
+               $SplunkUFInstallDir = (($UninstallPaths | % {Get-ItemProperty $_} | ? Displayname -match "UniversalForwarder").InstallLocation).TrimEnd("\")
                $Processes += 'splunkd'
             }
             Else {
