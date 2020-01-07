@@ -23,7 +23,7 @@ Function New-uASupportBundle {
             $OSBitness = $env:PROCESSOR_ARCHITECTURE
             $Processes = @('uberAgent','uAInSessionHelper')
             $UninstallPaths = @('HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
-            $uberAgentInstallDir = ($UninstallPaths | % {Get-ItemProperty $_} | ? Displayname -match "uberAgent").InstallLocation
+            $uberAgentInstallDir = ($UninstallPaths | ForEach-Object {Get-ItemProperty $_} | Where-Object Displayname -match "uberAgent").InstallLocation
             $SplunkUFservice = "SplunkForwarder"
 
             $RegKeysx86 = @(
@@ -34,6 +34,8 @@ Function New-uASupportBundle {
                 [PSCustomObject]@{Component = 'Internet Explorer'; Path = 'Registry::HKEY_CLASSES_ROOT\CLSID\{82004312-5B53-46F1-B179-4FCE28048E6F}\InProcServer32' }
                 [PSCustomObject]@{Component = 'Internet Explorer'; Path = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\IEXPLORE.EXE' }
                 [PSCustomObject]@{Component = 'Internet Explorer'; Path = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Internet Explorer\Main' }
+                [PSCustomObject]@{Component = 'Driver'; Path = 'Registry::HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\UberAgentDrv' }
+                [PSCustomObject]@{Component = 'Driver'; Path = 'Registry::HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\uberAgentNetMon' }
             )
 
             $RegKeysx64 = @(
@@ -46,13 +48,15 @@ Function New-uASupportBundle {
                 [PSCustomObject]@{Component = 'Internet Explorer'; Path = 'Registry::HKEY_CLASSES_ROOT\WOW6432Node\CLSID\{82004312-5B53-46F1-B179-4FCE28048E6F}\InProcServer32' }
                 [PSCustomObject]@{Component = 'Internet Explorer'; Path = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\IEXPLORE.EXE' }
                 [PSCustomObject]@{Component = 'Internet Explorer'; Path = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Internet Explorer\Main' }
+                [PSCustomObject]@{Component = 'Driver'; Path = 'Registry::HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\UberAgentDrv' }
+                [PSCustomObject]@{Component = 'Driver'; Path = 'Registry::HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\uberAgentNetMon' }
             )
 
             If ($OSBitness -eq 'AMD64') { $RegKeys = $RegKeysx64 } Else { $RegKeys = $RegKeysx86 }
            
             If ((Get-Service).Name -contains $SplunkUFservice) {
                $SplunkUFinstalled = $True
-               $SplunkUFInstallDir = (($UninstallPaths | % {Get-ItemProperty $_} | ? Displayname -match "UniversalForwarder").InstallLocation).TrimEnd("\")
+               $SplunkUFInstallDir = (($UninstallPaths | ForEach-Object {Get-ItemProperty $_} | Where-Object Displayname -match "UniversalForwarder").InstallLocation).TrimEnd("\")
                $Processes += 'splunkd'
             }
             Else {
@@ -153,6 +157,7 @@ Function New-uASupportBundle {
             New-Item -Path "$WorkingDirectory" -Name "Chrome registry keys.txt" -ItemType File | Out-Null
             New-Item -Path "$WorkingDirectory" -Name "Firefox registry keys.txt" -ItemType File | Out-Null
             New-Item -Path "$WorkingDirectory" -Name "Internet Explorer registry keys.txt" -ItemType File | Out-Null
+            New-Item -Path "$WorkingDirectory" -Name "Driver registry keys.txt" -ItemType File | Out-Null
             
             Foreach ($RegKey in $RegKeys) {
                 $RegKeyContent = Get-uARegistryItem -Key "$($RegKey.Path)"
