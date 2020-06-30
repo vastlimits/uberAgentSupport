@@ -13,6 +13,7 @@ Function New-uASupportBundle {
             $stopWatch = [system.diagnostics.stopwatch]::startNew()
             $stopWatch.Start()
             $uAServiceLogs = "$env:windir\temp\uberAgent*.log"
+            $uAServiceConfigurationLogs = "$env:windir\temp\uberAgentConfiguration*.log"
             $uAInSessionHelperLog = "$env:windir\temp\uAInSessionHelper.log"
             $ProfilesDirectory = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList' -Name ProfilesDirectory
             $UserProfiles = (Get-ChildItem -Path $ProfilesDirectory -Directory -Exclude 'Public').Name
@@ -102,6 +103,9 @@ Function New-uASupportBundle {
             ###
             Write-Verbose 'Collect uberAgent service logs' -Verbose
             Copy-uAItem -Source $uAServiceLogs -Destination $WorkingDirectory
+
+            Write-Verbose 'Collect uberAgent service configuration logs' -Verbose
+            Copy-uAItem -Source $uAServiceConfigurationLogs -Destination $WorkingDirectory
 
             Write-Verbose 'Collect In-Session helper log' -Verbose
             Copy-uAItem -Source $uAInSessionHelperLog -Destination $WorkingDirectory
