@@ -4,7 +4,7 @@ Function New-uASupportBundle {
     [CmdletBinding(SupportsShouldProcess = $False)]
     PARAM
     (
-   
+
     )
 
     Begin {
@@ -26,6 +26,7 @@ Function New-uASupportBundle {
             $UninstallPaths = @('HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
             $uberAgentInstallDir = ($UninstallPaths | ForEach-Object {Get-ItemProperty $_} | Where-Object Displayname -match "uberAgent").InstallLocation
             $SplunkUFservice = "SplunkForwarder"
+            $ExcludeExecutablesAndLibraries = @('*.exe','*.dll','*.sys','*.msi')
 
             $RegKeysx86 = @(
                 [PSCustomObject]@{Component = 'Service'; Path = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\vast limits' }
@@ -54,7 +55,7 @@ Function New-uASupportBundle {
             )
 
             If ($OSBitness -eq 'AMD64') { $RegKeys = $RegKeysx64 } Else { $RegKeys = $RegKeysx86 }
-           
+
             If ((Get-Service).Name -contains $SplunkUFservice) {
                $SplunkUFinstalled = $True
                $SplunkUFInstallDir = (($UninstallPaths | ForEach-Object {Get-ItemProperty $_} | Where-Object Displayname -match "UniversalForwarder").InstallLocation).TrimEnd("\")
@@ -63,7 +64,7 @@ Function New-uASupportBundle {
             Else {
                $SplunkUFinstalled = $False
             }
-            
+
             # Check for latest module version
             $LatestModuleVersion = $null
             $LatestModuleVersion = (Find-uAModule -Name uberAgentSupport).properties.version
@@ -87,48 +88,45 @@ Function New-uASupportBundle {
             Throw $ErrorMessage
         }
     }
-   
+
     Process {
         $ErrorActionPreference = 'Continue'
         Try {
             Start-Transcript -Path $PowerShellLog | Out-Null
             Write-Verbose 'Start' -Verbose
-         
+
             Write-Verbose "Create working directory $WorkingDirectory" -Verbose
             New-Item -Path $WorkingDirectory -ItemType Directory -Force | Out-Null
-            If($SplunkUFinstalled) {New-Item -Path "$WorkingDirectory\SplunkUniversalForwarder" -ItemType Directory -Force | Out-Null}
-         
-            ###
-            ### log files
-            ###
+
+            #region log files
             Write-Verbose 'Collect uberAgent service logs' -Verbose
-            Copy-uAItem -Source $uAServiceLogs -Destination $WorkingDirectory
+            Copy-uAItem -Source $uAServiceLogs -Destination "$WorkingDirectory\Service"
 
             Write-Verbose 'Collect uberAgent service configuration logs' -Verbose
-            Copy-uAItem -Source $uAServiceConfigurationLogs -Destination $WorkingDirectory
+            Copy-uAItem -Source $uAServiceConfigurationLogs -Destination "$WorkingDirectory\Service"
 
             Write-Verbose 'Collect In-Session helper log' -Verbose
-            Copy-uAItem -Source $uAInSessionHelperLog -Destination $WorkingDirectory
-         
+            Copy-uAItem -Source $uAInSessionHelperLog -Destination "$WorkingDirectory\uAInSessionHelper"
+
             Write-Verbose 'Collect Chrome/Firefox browser extension in-session helper logs for all sessions' -Verbose
             foreach ($UserProfile in $UserProfiles) {
-                Copy-uAItem -Source "$ProfilesDirectory\$UserProfile\AppData\Local\Temp\uAInSessionHelper.log" -Destination "$WorkingDirectory\uAInSessionHelper-$UserProfile.log"
+                Copy-uAItem -Source "$ProfilesDirectory\$UserProfile\AppData\Local\Temp\uAInSessionHelper.log" -Destination "$WorkingDirectory\Browser\uAInSessionHelper-$UserProfile.log"
             }
 
             Write-Verbose 'Collect Internet Explorer add-on log' -Verbose
             foreach ($UserProfile in $UserProfiles) {
-                Copy-uAItem -Source "$ProfilesDirectory\$UserProfile\AppData\Local\Temp\Low\uberAgentIEExtension.log" -Destination "$WorkingDirectory\uberAgentIEExtension-$UserProfile.log"
+                Copy-uAItem -Source "$ProfilesDirectory\$UserProfile\AppData\Local\Temp\Low\uberAgentIEExtension.log" -Destination "$WorkingDirectory\Browser\uberAgentIEExtension-$UserProfile.log"
             }
-         
+
             Write-Verbose 'Collect Internet Explorer add-on log - Enhanced Protection Mode' -Verbose
             If ($OperatingSystem -match 'Microsoft Windows 7') {
                 foreach ($UserProfile in $UserProfiles) {
-                    Copy-uAItem -Source "$ProfilesDirectory\$UserProfile\AppData\Local\Temp\Low\uberAgentIEExtension.log" -Destination "$WorkingDirectory\uberAgentIEExtension-EPM-$UserProfile.log"
+                    Copy-uAItem -Source "$ProfilesDirectory\$UserProfile\AppData\Local\Temp\Low\uberAgentIEExtension.log" -Destination "$WorkingDirectory\Browser\uberAgentIEExtension-EPM-$UserProfile.log"
                 }
             }
             Else {
                 foreach ($UserProfile in $UserProfiles) {
-                    Copy-uAItem -Source "$ProfilesDirectory\$UserProfile\AppData\Local\Packages\windows_ie_ac_001\AC\Temp\uberAgentIEExtension.log" -Destination "$WorkingDirectory\uberAgentIEExtension-EPM-$UserProfile.log"
+                    Copy-uAItem -Source "$ProfilesDirectory\$UserProfile\AppData\Local\Packages\windows_ie_ac_001\AC\Temp\uberAgentIEExtension.log" -Destination "$WorkingDirectory\Browser\uberAgentIEExtension-EPM-$UserProfile.log"
                 }
             }
 
@@ -137,56 +135,70 @@ Function New-uASupportBundle {
                 Copy-uAItem -Source "$SplunkUFInstallDir\var\log\splunk\splunkd.log" -Destination "$WorkingDirectory\SplunkUniversalForwarder\splunkd.log"
                 Copy-uAItem -Source "$SplunkUFInstallDir\var\log\splunk\metrics.log" -Destination "$WorkingDirectory\SplunkUniversalForwarder\metrics.log"
                 Write-Verbose 'Performing uberAgent to Splunk Universal Forwarder connection check' -Verbose
-                Get-NetTCPConnection | Format-Table LocalAddress, LocalPort, RemoteAddress, RemotePort, State, OwningProcess | Out-File -FilePath "$WorkingDirectory\Get-NetTCPConnection.log"
+                Get-NetTCPConnection | Format-Table LocalAddress, LocalPort, RemoteAddress, RemotePort, State, OwningProcess | Out-File -FilePath "$WorkingDirectory\SplunkUniversalForwarder\Get-NetTCPConnection.log"
             }
+            #endregion log files
 
-            ###
-            ### config files
-            ###
+            #region config files
             Write-Verbose 'Collect uberAgent configuration files' -Verbose
-            Copy-uAItem -Source "$env:programdata\vast limits\uberAgent\Configuration\uberAgent.conf" -Destination "$WorkingDirectory\uberAgent.programdata.conf"
-            Copy-uAItem -Source "$uberAgentInstallDir\uberAgent.conf" -Destination "$WorkingDirectory\uberAgent.programfiles.conf"
+            New-Item -Path "$WorkingDirectory" -Name Config -ItemType Directory | Out-Null
+
+            Copy-uAItem -Source "$env:programdata\vast limits\uberAgent\Configuration\*" -Destination "$WorkingDirectory\Config\ProgramData" -Recurse -Exclude $ExcludeExecutablesAndLibraries
+            Copy-uAItem -Source "$uberAgentInstallDir\*" -Destination "$WorkingDirectory\Config\ProgramFiles" -Recurse -Exclude $ExcludeExecutablesAndLibraries
+
+            if ((Get-ItemProperty -Path "HKLM:\SOFTWARE\vast limits\uberAgent\Config" -Name ConfigFilePath -ErrorAction SilentlyContinue) -OR (Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\vast limits\uberAgent\Config" -Name ConfigFilePath -ErrorAction SilentlyContinue)) {
+                # CCFM is active
+                $ConfigCachePath = (Get-ItemProperty -Path "HKLM:\SOFTWARE\vast limits\uberAgent\CCFM" -Name ConfigCachePath).ConfigCachePath
+                if ($ConfigCachePath)
+                {
+                    Copy-uAItem -Source "$ConfigCachePath\*" -Destination "$WorkingDirectory\Config\CCFM" -Recurse -Exclude $ExcludeExecutablesAndLibraries
+                }
+                else {
+                    Write-Warning "ConfigFilePath is set but ConfigCachePath is not. CCFM config is broken."
+                }
+
+            }
 
             If($SplunkUFinstalled) {
                 Write-Verbose 'Collect Splunk Universal Forwarder configuration files' -Verbose
                 Copy-uAItem -Source "$SplunkUFInstallDir\etc\system\local\inputs.conf" -Destination "$WorkingDirectory\SplunkUniversalForwarder\inputs.conf"
                 Copy-uAItem -Source "$SplunkUFInstallDir\etc\system\local\outputs.conf" -Destination "$WorkingDirectory\SplunkUniversalForwarder\outputs.conf"
             }
+            #endregion config files
 
-            ###
-            ### registry keys
-            ###
+            #region registry
             Write-Verbose 'Collect registry items' -Verbose
-            New-Item -Path "$WorkingDirectory" -Name "Service registry keys.txt" -ItemType File | Out-Null
-            New-Item -Path "$WorkingDirectory" -Name "Chrome registry keys.txt" -ItemType File | Out-Null
-            New-Item -Path "$WorkingDirectory" -Name "Firefox registry keys.txt" -ItemType File | Out-Null
-            New-Item -Path "$WorkingDirectory" -Name "Internet Explorer registry keys.txt" -ItemType File | Out-Null
-            New-Item -Path "$WorkingDirectory" -Name "Driver registry keys.txt" -ItemType File | Out-Null
-            
+            New-Item -Path "$WorkingDirectory\Registry" -ItemType Directory | Out-Null
+            New-Item -Path "$WorkingDirectory\Registry" -Name "Service registry keys.txt" -ItemType File | Out-Null
+            New-Item -Path "$WorkingDirectory\Registry" -Name "Chrome registry keys.txt" -ItemType File | Out-Null
+            New-Item -Path "$WorkingDirectory\Registry" -Name "Firefox registry keys.txt" -ItemType File | Out-Null
+            New-Item -Path "$WorkingDirectory\Registry" -Name "Internet Explorer registry keys.txt" -ItemType File | Out-Null
+            New-Item -Path "$WorkingDirectory\Registry" -Name "Driver registry keys.txt" -ItemType File | Out-Null
+
             Foreach ($RegKey in $RegKeys) {
                 $RegKeyContent = Get-uARegistryItem -Key "$($RegKey.Path)"
                 $RegKeyComponent = "$($RegKey.Component)"
-                Out-File -FilePath "$WorkingDirectory\$RegKeyComponent registry keys.txt" -InputObject $RegKeyContent -Append -NoClobber
+                Out-File -FilePath "$WorkingDirectory\Registry\$RegKeyComponent registry keys.txt" -InputObject $RegKeyContent -Append -NoClobber
             }
+            #endregion registry
 
-            ###
-            ### running processes
-            ###
+            #region processes
             Write-Verbose 'Collect uberAgent process details' -Verbose
+            New-Item -Path "$WorkingDirectory\Processes" -ItemType Directory | Out-Null
             Foreach ($Process in $Processes) {
                 $ProcessDetail = Get-uAProcessDetails -ProcessName $Process
                 Write-Verbose "Collect details for process $Process"
-                Out-File -FilePath "$WorkingDirectory\Process details.txt" -InputObject $ProcessDetail -Append -NoClobber
+                Out-File -FilePath "$WorkingDirectory\Processes\Process details.txt" -InputObject $ProcessDetail -Append -NoClobber
             }
+            #endregion processes
 
-            ###
-            ### zip file
-            ###
+            #region zip file
             Write-Verbose 'Create support zip file' -Verbose
             $CurrentDate = Get-Date -Format "yyyy-MM-dd HH-mm-ss"
             $ZipFilename = 'uASupportBundle-' + "$env:COMPUTERNAME" + '-' + "$CurrentDate" + '.zip'
             Compress-uAArchive -SourceDir $WorkingDirectory -ZipFilename $ZipFilename -ZipFilepath $DesktopPath
             Write-Verbose "Successfully created uberAgent support bundle at $(Join-Path $DesktopPath $ZipFilename)" -Verbose
+            #endregion zip file
 
             Write-Verbose 'Finish' -Verbose
         }
@@ -194,7 +206,7 @@ Function New-uASupportBundle {
             $ErrorMessage = $_.Exception.Message
             Write-Error $ErrorMessage
         }
-      
+
         Finally {
             $stopWatch.Stop()
             Write-Verbose "Elapsed Runtime: $($stopWatch.Elapsed.Minutes) minutes and $($stopWatch.Elapsed.Seconds) seconds." -Verbose
