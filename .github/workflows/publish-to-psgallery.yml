@@ -1,0 +1,29 @@
+# Description: This workflow publishes the uberAgent support module to the PowerShell Gallery.
+# The workflow is triggered manually and requires the PowerShell Gallery API key as an input.
+
+name: Publish to PowerShell Gallery
+
+on:
+  workflow_dispatch:
+   inputs:
+     PSGALLERY_API_KEY:
+       description: 'PowerShell Gallery API key'
+       required: true
+       type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Publish PowerShell Module
+      uses: natescherer/publish-powershell-action@v1
+      with:
+        token: ${{ inputs.PSGALLERY_API_KEY }}
+        target: gallery
+        path: uberAgentSupport
