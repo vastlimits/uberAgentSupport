@@ -1,0 +1,33 @@
+name: Check Windows Version
+
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Check for changes in uberAgentSupport and Version update in module file
+      run: |
+        # Get the list of modified files between the base branch and the current branch
+        CHANGED_FILES=$(git diff --name-only origin/main)
+
+        # Check if any files in the uberAgentSupport directory were changed
+        if echo "$CHANGED_FILES" | grep -q '^uberAgentSupport/'; then
+          echo "Changes detected in uberAgentSupport directory."
+
+          # Check if the module file was updated with a new version
+          if ! git diff origin/main -- uberAgentSupport/uberAgentSupport.psd1 | grep -q '^+.*ModuleVersion ='; then
+            echo "The module version in uberAgentSupport/uberAgentSupport.psd1 was not updated. Please update the module version."
+            exit 1
+          else
+            echo "The module version in uberAgentSupport/uberAgentSupport.psd1 was updated."
+          fi
+        else
+          echo "No changes detected in uberAgentSupport directory."
+        fi
