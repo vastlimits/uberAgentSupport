@@ -1,4 +1,4 @@
-#Requires -Version 3.0
+#Requires -Version 5.1
 #Requires -RunAsAdministrator
 Function New-uASupportBundle {
     [CmdletBinding(SupportsShouldProcess = $False)]
@@ -12,9 +12,40 @@ Function New-uASupportBundle {
         Try {
             $stopWatch = [system.diagnostics.stopwatch]::startNew()
             $stopWatch.Start()
-            $uAServiceLogs = "$env:windir\temp\uberAgent*.log"
-            $uAServiceConfigurationLogs = "$env:windir\temp\uberAgentConfiguration*.log"
-            $uAInSessionHelperLog = "$env:windir\temp\uAInSessionHelper.log"
+
+            # Evaluate log file path
+            $null = $LogPath
+            $LogPath = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\Policies\vast limits\uberAgent\LogConfig" -Name LogPath -ErrorAction SilentlyContinue
+            if (-not $LogPath)
+            {
+                Write-Verbose "LogPath not found in 'HKLM:\SOFTWARE\Policies\vast limits\uberAgent\LogConfig'. Trying 'HKLM:\SOFTWARE\vast limits\uberAgent\LogConfig'." -Verbose
+                $LogPath = Get-ItemPropertyValue -Path "HKLM:\SOFTWARE\vast limits\uberAgent\LogConfig" -Name LogPath -ErrorAction SilentlyContinue
+            }
+            else
+            {
+                Write-Verbose "LogPath found in 'HKLM:\SOFTWARE\Policies\vast limits\uberAgent\LogConfig'." -Verbose
+            }
+            if (-not $LogPath)
+            {
+                Write-Verbose "LogPath not found in 'HKLM:\SOFTWARE\vast limits\uberAgent\LogConfig'. Using default path." -Verbose
+                $LogPath = "$env:windir\temp"
+            }
+            else
+            {
+                Write-Verbose "LogPath found in 'HKLM:\SOFTWARE\vast limits\uberAgent\LogConfig'." -Verbose
+            }
+            $ResolvedLogPath = [System.Environment]::ExpandEnvironmentVariables($LogPath)
+            Write-Verbose "Resolved log path: $ResolvedLogPath" -Verbose
+
+            # Test access to log path
+            if (-not $(Test-Path -Path $ResolvedLogPath))
+            {
+                Throw "Log path '$ResolvedLogPath' not found. Please check the log path configuration or verify that you have the permissions to access the log path."
+            }
+
+            $uAServiceLogs = "$ResolvedLogPath\uberAgent*.log"
+            $uAServiceConfigurationLogs = "$ResolvedLogPath\uberAgentConfiguration*.log"
+            $uAInSessionHelperLog = "$ResolvedLogPath\uAInSessionHelper.log"
             $ProfilesDirectory = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList' -Name ProfilesDirectory
             $UserProfiles = (Get-ChildItem -Path $ProfilesDirectory -Directory -Exclude 'Public').Name
             $WorkingDirectory = "$env:temp\uASupport"
