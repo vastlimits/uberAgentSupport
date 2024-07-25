@@ -1,3 +1,6 @@
+# Description: This workflow publishes the uberAgent support module to the PowerShell Gallery.
+# The workflow is triggered manually and requires the PowerShell Gallery API key as an input.
+
 name: Publish to PowerShell Gallery
 
 on:
