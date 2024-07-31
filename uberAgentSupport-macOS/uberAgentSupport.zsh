@@ -3,15 +3,15 @@
 #########################################################################
 #                                                                       #
 # Script Name: uberAgentSupport.zsh                                     #
-# Version:     1.0.0                                                    #
-# Date:        2024-03-22                                               #
-# Author:      uberAgent Support Team                                   #
-# Company:     vast limits GmbH                                         #
+# Version:     1.1.0                                                    #
+# Date:        2024-07-31                                               #
+# Author:      uberAgent Team                                           #
+# Company:     Citrix, Cloud Software Group                             #
 #                                                                       #
 # Description:                                                          #
-# This script gathers key logs and UberAgent configuration files from   #
-# your system into a single support bundle. This bundle assists in      #
-# diagnosing and addressing any potential issues with the product       #
+# This script gathers logs and uberAgent configuration files from       #
+# your system and creates a single support bundle. This bundle assists  #
+# in diagnosing and addressing any potential issues with the product.   #
 # The bundle includes user logs, crash reports, configuration files,    #
 # and folder permissions.                                               #
 #                                                                       #
@@ -24,7 +24,7 @@
 #                                                                       #
 #########################################################################
 
-# Define path to Desktop, hostname and timestamp for better readability and reusability
+# Define path to desktop, hostname and timestamp for better readability and reusability
 desktopPath="$HOME/Desktop"
 hostname=$(hostname)
 timestamp=$(date "+%Y-%m-%d_%H-%M-%S")
@@ -40,27 +40,56 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # Create a structured directory tree inside the bundle path
-mkdir -p "${bundlePath}"/{Config/Local,Config/CCFM,Logs/Daemon,Logs/Users,CrashReports}
+mkdir -p "${bundlePath}"/{Config/Local,Config/CCFM,Logs/Daemon,Logs/Users,Logs/Remote,CrashReports}
 
 # Define a log file path inside the bundle
-logPath="${bundlePath}/uASupportBundleLog.txt"
+scriptLogPath="${bundlePath}/uASupportBundleLog.txt"
 
-# Redirect all future command outputs(both stdout and stderr) to the specified log file
-exec > >(tee -a $logPath) 2>&1
+# Redirect all future command outputs (both stdout and stderr) to the specified log file
+exec > >(tee -a $scriptLogPath) 2>&1
 
-# Start copying desired files
-echo "Collecting files..."
-cp -R /Library/Logs/uberAgent/* "${bundlePath}/Logs/Daemon/"
+# Function to collect log files from either default or specified path
+collectLogs() {
+    local remoteLogfilePath="$1"
 
-# Make sure to copy user-specific logs 
-for dir in /Users/*/
-do
-    username=$(basename $dir)
-    if [ -d "${dir}Library/Logs/uberAgent/" ]; then
-        mkdir -p "${bundlePath}/Logs/Users/${username}"
-        cp -R "${dir}Library/Logs/uberAgent/" "${bundlePath}/Logs/Users/${username}/"
+    if [ -d "${remoteLogfilePath}" ]; then
+        echo "Collecting logs from ${remoteLogfilePath}..."
+        find "${remoteLogfilePath}" -type f -name "*${hostname}*" -exec cp {} "${bundlePath}/Logs/Remote/" \;
+    else
+        echo "Log file path ${remoteLogfilePath} is not accessible or does not exist. Collecting logs from default locations."
+        cp -R /Library/Logs/uberAgent/* "${bundlePath}/Logs/Daemon/"
+        
+        # Make sure to copy user-specific logs
+        for dir in /Users/*/
+        do
+            username=$(basename $dir)
+            if [ -d "${dir}Library/Logs/uberAgent/" ]; then
+                mkdir -p "${bundlePath}/Logs/Users/${username}"
+                cp -R "${dir}Library/Logs/uberAgent/" "${bundlePath}/Logs/Users/${username}/"
+            fi
+        done
     fi
-done
+}
+
+# Check for meta config file and extract log file path
+metaConfigFile="/Library/Application Support/uberAgent/uberAgent-meta-config.conf"
+remoteLogfilePath=""
+
+if [ -f "${metaConfigFile}" ]; then
+    remoteLogfilePath=$(grep "^LogFilePath" "${metaConfigFile}" | cut -d'=' -f2 | xargs)
+    if [ -z "${remoteLogfilePath}" ] || [ ! -d "${remoteLogfilePath}" ]; then
+        remoteLogfilePath=""
+        echo "Log file path is empty or inaccessible, using default log locations."
+    else
+        echo "Using log file path from meta config: ${remoteLogfilePath}"
+    fi
+else
+    echo "Meta config file not found, using default log locations."
+fi
+
+# Start copying desired files and collect logs using the identified or default path
+echo "Collecting files..."
+collectLogs "${remoteLogfilePath}"
 
 # Check and log permissions of uberAgent's Application Support directory
 echo "Checking folder permissions..."
