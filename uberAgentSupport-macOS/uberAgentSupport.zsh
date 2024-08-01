@@ -40,6 +40,10 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 # Create a structured directory tree inside the bundle path
+if [ -z "${bundlePath}" ]; then
+    echo "Error: bundlePath is not set."
+    exit 1
+fi
 mkdir -p "${bundlePath}"/{Config/Local,Config/CCFM,Logs/Daemon,Logs/Users,Logs/Remote,CrashReports}
 
 # Define a log file path inside the bundle
@@ -62,7 +66,7 @@ collectLogs() {
         # Make sure to copy user-specific logs
         for dir in /Users/*/
         do
-            username=$(basename $dir)
+            username=$(basename "$dir")
             if [ -d "${dir}Library/Logs/uberAgent/" ]; then
                 mkdir -p "${bundlePath}/Logs/Users/${username}"
                 cp -R "${dir}Library/Logs/uberAgent/" "${bundlePath}/Logs/Users/${username}/"
