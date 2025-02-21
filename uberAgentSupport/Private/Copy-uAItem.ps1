@@ -1,3 +1,21 @@
+Function Test-IsAbsolutePath {
+    PARAM (
+        [Parameter(Mandatory = $True, Position = 0)]
+        [string]$Path
+    )
+
+    if ($null -eq $Path -or $Path -eq "") {
+        return $false
+    }
+
+    # Test if the path is absolute
+    if ($Path -match '^[a-zA-Z]:\\' -or $Path.StartsWith('/')) {
+        return $true
+    }
+
+    return $false
+}
+
 Function Copy-uAItem {
     PARAM(
         [Parameter(Mandatory = $True, Position = 0)]
@@ -14,6 +32,17 @@ Function Copy-uAItem {
             $DestinationDirectory = Split-Path $Destination -Parent
         } else {
             $DestinationDirectory = $Destination
+        }
+
+        # Check if the paths are absolute
+        if ((Test-IsAbsolutePath -Path $Source) -ne $true) {
+            Write-Warning "The Source path '$Source' is not an absolute path. Skipping copy action."
+            return
+        }
+
+        if ((Test-IsAbsolutePath -Path $Destination) -ne $true) {
+            Write-Warning "The Destination path '$Destination' is not an absolute path. Skipping copy action."
+            return
         }
 
         # If the destination directory doesn't exist, create it
@@ -34,6 +63,7 @@ Function Copy-uAItem {
         }
 
         Copy-Item @copyItemParams
+        Write-Warning "The Source path '$Source' does not exist."
     }
     Else {
         Write-Warning "There is no file '$Source'"
@@ -42,8 +72,8 @@ Function Copy-uAItem {
 # SIG # Begin signature block
 # MIIRVgYJKoZIhvcNAQcCoIIRRzCCEUMCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCDMGiMJ/X6tnHVm
-# dqVzx/qoDLUzedRdyYhfAbKHQH+5LqCCDW0wggZyMIIEWqADAgECAghkM1HTxzif
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCAexxv/iiRWSK0b
+# brM7y8uqx5MUOiu49VNwkypGin2V06CCDW0wggZyMIIEWqADAgECAghkM1HTxzif
 # CDANBgkqhkiG9w0BAQsFADB8MQswCQYDVQQGEwJVUzEOMAwGA1UECAwFVGV4YXMx
 # EDAOBgNVBAcMB0hvdXN0b24xGDAWBgNVBAoMD1NTTCBDb3Jwb3JhdGlvbjExMC8G
 # A1UEAwwoU1NMLmNvbSBSb290IENlcnRpZmljYXRpb24gQXV0aG9yaXR5IFJTQTAe
@@ -120,17 +150,17 @@ Function Copy-uAItem {
 # BAMMK1NTTC5jb20gQ29kZSBTaWduaW5nIEludGVybWVkaWF0ZSBDQSBSU0EgUjEC
 # EH2BzCLRJ8FqayiMJpFZrFQwDQYJYIZIAWUDBAIBBQCggYQwGAYKKwYBBAGCNwIB
 # DDEKMAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEE
-# AYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAvBgkqhkiG9w0BCQQxIgQgoFGnYi2fJ1pw
-# y2Ya4Lp5re4hwC/EVhOca6XS8EdLiQIwDQYJKoZIhvcNAQEBBQAEggIA1aumUvpE
-# Dmz3erdSJfuem2I9jLlXx1JNydQOOW2jk8gQ3ooXWkqbkc8sS1BKJ6MHxR4uh+PJ
-# VkgkTT2LRBYcGwWrjZPWqTlpNOJJHQQUPfTax3g3JD+Bt6nxm3GPnS5rY2Jhi3mo
-# /+8RFThI0HKYPFb/WqCg+721mzTw6AMWCpDzU1FqqtttzhQODZUHMgHcMndh/tkX
-# Xp02jaX8AkgIiJaUUF2rfosWAy8+9zjKQKfsVyA+CRh/HxvzgEzu1KSdGkCZzQUn
-# Qb9Q1t4icclU8j+cPECKfXQBxMwQjSeHCv3C9Yb7ofEHZqnkJkUmP1pdbdWynba4
-# EyP0xGbVefbqjjzSo8XsS1hNqs4acnvoO/LYLUhoFOV4mYXPutGoiRxuleDO1Pyl
-# R1oQPgyvJ81N+AkW9QKzyHLiPlqaalM2fDUJNdfFfHc2ZfNfaErmoEG+Gzhs9EVf
-# 190PScuJpSrUIaeAqvRD1VQxySwuYkTt53xVp70Kryk7p6vgRyATl4Dz3nyi1zw5
-# IChDgehtlAsNdQW/NpgdyH6BlWhF/B6hWY3yquURWZEgVTR4JkWKvEm5yW+AaqeK
-# XK3/iuCIExXR+ZO3wA++z/D/m2Y0WtYpjoa30s5CQtOkE63Ku1k0JJZgWVz329DZ
-# 83PlClM5dBny///QCKjgPQcHT3xvNLwB14Y=
+# AYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAvBgkqhkiG9w0BCQQxIgQg8obYMnvskSwS
+# tWYY/n9fF1bi2ul5vDCujxYzscZ8TbMwDQYJKoZIhvcNAQEBBQAEggIApxMbq53q
+# ITijgSA4SMuTmeTOIdxlkauamDSYyDIuyNur8exx53Hu4FOb5w+cDGdUWq6AX/k+
+# gi9TpihZnOOAibBYRmFo4LgwFg87akj50nDKk+6bGjowsfSEjuMzeZL4cDJbtxfU
+# tZHqNbESSBsExSIbZ6zwSsw/FIjFcW3w6OzObYlpvywRPGFjmZhZSd554Itpdz+G
+# CnJ2skM2jdaMgklBYTNJ5TnRDdOCAFmnE4ePdnEW/VljpCd5dSqsL2x7lBUFSacE
+# gbT5ftZzKg6Msf5YGUlyEB28zDm1G7jAG8ha5ihAVdEJv/Hos2XNqJXL5zXmjz0B
+# qkuWZi4yKVy/oXlrLEu/s4gi7txVx5VqVLW/V8Oa7RQBqpICFUCZbj3osUlegS+Z
+# nXDBHeTH9n6uNy0gpO77QApCvZPGjPirFKmbBbzM7pvhoT4gROF7sFFMlzjt9PJX
+# br3VTC3eBudvoiPfxHGZvP9wl/zmpypzY3Bjp6BSrHpkOJU3QWJ3zQMaZHoV0Wt2
+# SL+Jh9kUHiclgVjA0BrcryB4tNkHERC7kebaiHU4remuBNlO4zRA9+KwtC73PuJH
+# 2atQ0g3e/HfQGIdIvyO6lkDD/D0lGH7ingDtWSmROVuM2otUnSQIHmQL5Jo4tmwW
+# LJb0Pi7y3wo8whWVlYREH56uti03ThYjKI8=
 # SIG # End signature block
