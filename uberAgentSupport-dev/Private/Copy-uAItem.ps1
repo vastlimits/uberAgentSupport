@@ -63,9 +63,8 @@ Function Copy-uAItem {
         }
 
         Copy-Item @copyItemParams
-        Write-Warning "The Source path '$Source' does not exist."
     }
     Else {
-        Write-Warning "There is no file '$Source'"
+        Write-Warning "The Source path '$Source' does not exist."
     }
 }
