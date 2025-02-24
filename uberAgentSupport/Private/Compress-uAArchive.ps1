@@ -22,22 +22,33 @@ Function Compress-uAArchive{
 
     $shellApplication = new-object -com shell.application
     $zipPackage = $shellApplication.NameSpace($ZipFile)
-    $files = Get-ChildItem -Path $SourceDir
+    $items = Get-ChildItem -Path $SourceDir
 
-    foreach($file in $files) { 
-        $zipPackage.CopyHere($file.FullName)
-        #using this method, sometimes files can be 'skipped'
-        #this 'while' loop checks each file is added before moving to the next
-        while($null -eq $zipPackage.Items().Item($file.name)){
-            Start-sleep -seconds 1
+    foreach ($item in $items) {
+        if ($item.PSIsContainer) {
+            $files = Get-ChildItem -Path $item.FullName
+            if ($files.Count -eq 0) {
+                Write-Verbose "Skipping empty folder: $($item.FullName)"
+                continue
+            }
+        }
+
+        try {
+            $zipPackage.CopyHere($item.FullName)
+        } catch {
+            Write-Error "Failed to copy $($item.FullName) to the zip package."
+        }
+
+        while ($null -eq $zipPackage.Items().Item($item.Name)) {
+            Start-Sleep -Seconds 1
         }
     }
 }
 # SIG # Begin signature block
 # MIIRVgYJKoZIhvcNAQcCoIIRRzCCEUMCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBIzKMDSx2RaqtR
-# W++II9n9bf06IHgEQzThbBsg9ZMRp6CCDW0wggZyMIIEWqADAgECAghkM1HTxzif
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCHqmeJfmOpG0zC
+# zKlnRsF3v6rhg3yRIxv6I9v4gm76+6CCDW0wggZyMIIEWqADAgECAghkM1HTxzif
 # CDANBgkqhkiG9w0BAQsFADB8MQswCQYDVQQGEwJVUzEOMAwGA1UECAwFVGV4YXMx
 # EDAOBgNVBAcMB0hvdXN0b24xGDAWBgNVBAoMD1NTTCBDb3Jwb3JhdGlvbjExMC8G
 # A1UEAwwoU1NMLmNvbSBSb290IENlcnRpZmljYXRpb24gQXV0aG9yaXR5IFJTQTAe
@@ -114,17 +125,17 @@ Function Compress-uAArchive{
 # BAMMK1NTTC5jb20gQ29kZSBTaWduaW5nIEludGVybWVkaWF0ZSBDQSBSU0EgUjEC
 # EH2BzCLRJ8FqayiMJpFZrFQwDQYJYIZIAWUDBAIBBQCggYQwGAYKKwYBBAGCNwIB
 # DDEKMAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEE
-# AYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAvBgkqhkiG9w0BCQQxIgQg3O29mRQxp2oZ
-# IHFcJu/hBINETVJzcgsAKDd1CE90sU0wDQYJKoZIhvcNAQEBBQAEggIAMaYFELfT
-# oPiVYoosR4hHKxXkCCd3I2QiQtbBINlIb3dVhL7B6ZZvinTYUL7Is8KacRJqZ9G+
-# yYkX4dB0vzetNpIz4gbvKLI7nQH47N7j5O1Wze2dqBAlrvXeqHugT1OdFEiWYP/I
-# EMQa3yethMI3weyFYCvGAELCjbm78HVG6c3KWh5jkEVs3bDuIhOdnywAJdAjqT4f
-# hn1C9WdPXnLYnz5L7QIgo0wLLgi75REpj5Puaskbh56+spQIgbxJlbgnyFxYlSeK
-# oVmlPXwlYHQOPi4tkDarWrnqpjeDTVTOepgIU7zI53jIz7hlmHX6vTzfSG22R1iH
-# v7NCXf3TUrE901Nw0LowO449HicAZwTmP5y1z4Y50WO+vtkl6HRMoqLQnqpb3RIu
-# Snqo6TxasAfamDp9qP7QTncu5XnWAfXD1BZsI33UFJvg7GbPv8UIkF4IwD2FMWnP
-# f2sknJglfGF40Ir1QT1XzEJEYpqhtVk98Myagl6AWPC+stFQlTfmcH3NOuwIM7Re
-# k9HN9c/BpPrhoLdo1IlLxGiq12LiwL4zfFxV66dX5BLiiwGOT1ydRs/iEHYxuXKb
-# uu8/pXEsbkBNdWmQOssl0ukzsXGVzCWGvvwoVyJyDVxmU3w2/IR2zi3fis1mQzjJ
-# w06TT5CN5jjARPg34CukaGtPg6c+7nLROX4=
+# AYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAvBgkqhkiG9w0BCQQxIgQgiY/23q89AXlm
+# 2+cQZAQOSy/oeIeaWTQieTSQYc+TEX4wDQYJKoZIhvcNAQEBBQAEggIAfbpdN6Py
+# A1SVkwO627MBx+lTRBTQzes+UiPJZRdBVNhAKx+qMdXD2E2mK0C/Sco4JYW3y/Xo
+# dh0BaSaAZf1QPyE4was9DgvCE1hGHQvsNaENJ6NiYAMAX3Vcag2urOGNF+NTJyPq
+# 7RUtGFLFitBhd7nrrYAUY6v+4oegzXXX0A2LOv1FSVS4tiZH/cqblWA7ZzIG6VIF
+# dPCcUXTkauJdeSiqHI+hSH7QBo3roY09VELRL7CZG5ykfKQLsdnkubLTV4CeeMPz
+# M42MufeVioW4lT4h9Ax8BeXcbnqkvxg4pzZu0rNUKl2tGDuehvujwdBSg3IGG84p
+# jMyMh6ndFUAVrpgKSoi09UsWSmfK6CMqWieDnSFiGvPdY2s7iKdQ282X5f+Hmd4P
+# wayFJXJfSLs7viSIKwG7MiOFdhVVKRTgQzZNW26BDfVF1XIVJUt+P3B1RcBBVD/V
+# l8EGDl+xtErdSmQtjhy+M2HtS2sONkuDrb/wJ8xoIVrwMLuBrwJkf/KcByLGoHIu
+# wQq/VVEsDc8Tcu5I9W7ijZTZebeCoypBWNeNTwiU+drQ1QpP+oCZNXlhiDMQdSxs
+# g7+DoSAy4ygN2GVIuNbncOuGyAgDzvHp7uB7pQuC+mjsXDA2f8waGb5XBRgxHwt/
+# ehGBdTu9YIsRw+e7tWT5txmSUjupnAMKiJg=
 # SIG # End signature block

@@ -22,14 +22,25 @@ Function Compress-uAArchive{
 
     $shellApplication = new-object -com shell.application
     $zipPackage = $shellApplication.NameSpace($ZipFile)
-    $files = Get-ChildItem -Path $SourceDir
+    $items = Get-ChildItem -Path $SourceDir
 
-    foreach($file in $files) { 
-        $zipPackage.CopyHere($file.FullName)
-        #using this method, sometimes files can be 'skipped'
-        #this 'while' loop checks each file is added before moving to the next
-        while($null -eq $zipPackage.Items().Item($file.name)){
-            Start-sleep -seconds 1
+    foreach ($item in $items) {
+        if ($item.PSIsContainer) {
+            $files = Get-ChildItem -Path $item.FullName
+            if ($files.Count -eq 0) {
+                Write-Verbose "Skipping empty folder: $($item.FullName)"
+                continue
+            }
+        }
+
+        try {
+            $zipPackage.CopyHere($item.FullName)
+        } catch {
+            Write-Error "Failed to copy $($item.FullName) to the zip package."
+        }
+
+        while ($null -eq $zipPackage.Items().Item($item.Name)) {
+            Start-Sleep -Seconds 1
         }
     }
 }
