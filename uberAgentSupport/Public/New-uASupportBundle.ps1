@@ -29,22 +29,19 @@ Function New-uASupportBundle {
             else {
                 Write-Verbose "LogPath found in 'HKLM:\SOFTWARE\Policies\vast limits\uberAgent\LogConfig'." -Verbose
             }
-            if (-not $LogPath)
-            {
+            if (-not $LogPath) {
                 Write-Verbose "LogPath not found in 'HKLM:\SOFTWARE\vast limits\uberAgent\LogConfig'. Using default path." -Verbose
                 $LogPath = "$env:windir\temp"
             }
-            else
-            {
+            else {
                 Write-Verbose "LogPath found in 'HKLM:\SOFTWARE\Policies\vast limits\uberAgent\LogConfig'." -Verbose
             }
-            
+
             $ResolvedLogPath = [System.Environment]::ExpandEnvironmentVariables($LogPath)
             Write-Verbose "Resolved log path: $ResolvedLogPath" -Verbose
 
             # Test access to log path
-            if (-not $(Test-Path -Path $ResolvedLogPath))
-            {
+            if (-not $(Test-Path -Path $ResolvedLogPath)) {
                 Throw "Log path '$ResolvedLogPath' not found. Please check the log path configuration or verify that you have the permissions to access the log path."
             }
 
@@ -52,7 +49,8 @@ Function New-uASupportBundle {
             $uAServiceConfigurationLogs = [System.IO.Path]::Combine($ResolvedLogPath, "uberAgentServiceConfig*.log")
             if (Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList') {
                 $ProfilesDirectory = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList' -Name ProfilesDirectory
-            } else {
+            }
+            else {
                 Throw "Registry key 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList' not found."
             }
             $uAInSessionHelperLog = [System.IO.Path]::Combine($ResolvedLogPath, "uAInSessionHelper.log")
@@ -63,11 +61,28 @@ Function New-uASupportBundle {
             $OperatingSystem = (Get-CimInstance -Class Win32_OperatingSystem).caption
             $DesktopPath = [Environment]::GetFolderPath('Desktop')
             $OSBitness = $env:PROCESSOR_ARCHITECTURE
-            $Processes = @('uberAgent','uAInSessionHelper')
-            $UninstallPaths = @('HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
-            $uberAgentInstallDir = ($UninstallPaths | ForEach-Object {Get-ItemProperty $_} | Where-Object Displayname -match "uberAgent").InstallLocation
+            $Processes = @('uberAgent', 'uAInSessionHelper')
+            $UninstallPaths = @('HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
+
+            # Check if the given registry paths exist and filter out those that do not.
+            $UninstallPaths = $UninstallPaths | Where-Object { Test-Path $_ }
+
+            # Verify if there is at least one valid uninstall path.
+            if (-not $UninstallPaths) {
+                Write-Error "No valid uninstall path was found."
+                exit 1
+            }
+
+            $uberAgentInstallDir = ($UninstallPaths | ForEach-Object { Get-ItemProperty $_ } | Where-Object Displayname -match "uberAgent").InstallLocation
+
+            # Check if an uberAgent installation has been found.
+            if (-not $uberAgentInstallDir) {
+                Write-Error "No uberAgent installation found."
+                exit 1
+            }
+
             $SplunkUFservice = "SplunkForwarder"
-            $ExcludeExecutablesAndLibraries = @('*.exe','*.dll','*.sys','*.msi')
+            $ExcludeExecutablesAndLibraries = @('*.exe', '*.dll', '*.sys', '*.msi')
 
             $RegKeysx86 = @(
                 [PSCustomObject]@{Component = 'Service'; Path = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\vast limits' }
@@ -98,12 +113,12 @@ Function New-uASupportBundle {
             If ($OSBitness -eq 'AMD64') { $RegKeys = $RegKeysx64 } Else { $RegKeys = $RegKeysx86 }
 
             If ((Get-Service).Name -contains $SplunkUFservice) {
-               $SplunkUFinstalled = $True
-               $SplunkUFInstallDir = (($UninstallPaths | ForEach-Object {Get-ItemProperty $_} | Where-Object Displayname -match "UniversalForwarder").InstallLocation).TrimEnd("\")
-               $Processes += 'splunkd'
+                $SplunkUFinstalled = $True
+                $SplunkUFInstallDir = (($UninstallPaths | ForEach-Object { Get-ItemProperty $_ } | Where-Object Displayname -match "UniversalForwarder").InstallLocation).TrimEnd("\")
+                $Processes += 'splunkd'
             }
             Else {
-               $SplunkUFinstalled = $False
+                $SplunkUFinstalled = $False
             }
 
             # Check for latest module version
@@ -150,11 +165,17 @@ Function New-uASupportBundle {
             Copy-uAItem -Source $uAInSessionHelperLog -Destination "$WorkingDirectory\uAInSessionHelper"
 
             Write-Verbose 'Collect Chrome/Firefox browser extension in-session helper logs for all sessions' -Verbose
-            
-
             foreach ($UserProfile in $UserProfiles) {
                 $src = [System.IO.Path]::Combine($ProfilesDirectory, $UserProfile, "AppData\Local\Temp\uAInSessionHelper.log")
                 $dst = [System.IO.Path]::Combine($WorkingDirectory, "Browser", "uAInSessionHelper-$UserProfile.log")
+
+                Copy-uAItem -Source $src -Destination $dst
+            }
+
+            Write-Verbose 'Collect Config and Support Tool log' -Verbose
+            foreach ($UserProfile in $UserProfiles) {
+                $src = [System.IO.Path]::Combine($ProfilesDirectory, $UserProfile, "AppData\Local\Temp\uAConfigSupportTool.log")
+                $dst = [System.IO.Path]::Combine($WorkingDirectory, "uAConfigSupportTool", "uAConfigSupportTool-$UserProfile.log")
 
                 Copy-uAItem -Source $src -Destination $dst
             }
@@ -182,7 +203,7 @@ Function New-uASupportBundle {
                 }
             }
 
-            If($SplunkUFinstalled) {
+            If ($SplunkUFinstalled) {
                 Write-Verbose 'Collect Splunk Universal Forwarder logs' -Verbose
 
                 $src = [System.IO.Path]::Combine($SplunkUFInstallDir, "var\log\splunk\splunkd.log")
@@ -206,7 +227,7 @@ Function New-uASupportBundle {
             $src = [System.IO.Path]::Combine($env:programdata, "vast limits\uberAgent\Configuration\*")
             $dst = [System.IO.Path]::Combine($WorkingDirectory, "Config\ProgramData")
             Copy-uAItem -Source $src -Destination $dst -Recurse -Exclude $ExcludeExecutablesAndLibraries
-            
+
             $src = [System.IO.Path]::Combine($uberAgentInstallDir, "*")
             $dst = [System.IO.Path]::Combine($WorkingDirectory, "Config\ProgramFiles")
             Copy-uAItem -Source $src -Destination $dst -Recurse -Exclude $ExcludeExecutablesAndLibraries
@@ -214,8 +235,7 @@ Function New-uASupportBundle {
             if ((Get-ItemProperty -Path "HKLM:\SOFTWARE\vast limits\uberAgent\Config" -Name ConfigFilePath -ErrorAction SilentlyContinue) -OR (Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\vast limits\uberAgent\Config" -Name ConfigFilePath -ErrorAction SilentlyContinue)) {
                 # CCFM is active
                 $ConfigCachePath = (Get-ItemProperty -Path "HKLM:\SOFTWARE\vast limits\uberAgent\CCFM" -Name ConfigCachePath).ConfigCachePath
-                if ($ConfigCachePath)
-                {
+                if ($ConfigCachePath) {
                     $src = [System.IO.Path]::Combine($ConfigCachePath, "*")
                     $dst = [System.IO.Path]::Combine($WorkingDirectory, "Config\CCFM")
                     Copy-uAItem -Source $src -Destination $dst -Recurse -Exclude $ExcludeExecutablesAndLibraries
@@ -226,7 +246,7 @@ Function New-uASupportBundle {
 
             }
 
-            If($SplunkUFinstalled) {
+            If ($SplunkUFinstalled) {
                 Write-Verbose 'Collect Splunk Universal Forwarder configuration files' -Verbose
 
                 $src = [System.IO.Path]::Combine($SplunkUFInstallDir, "etc\system\local\inputs.conf")
@@ -302,7 +322,7 @@ Function New-uASupportBundle {
                 else {
                     Write-Error "Failed to delete working directory '$WorkingDirectory'"
                 }
-                
+
             }
         }
     }
@@ -310,8 +330,8 @@ Function New-uASupportBundle {
 # SIG # Begin signature block
 # MIIRVgYJKoZIhvcNAQcCoIIRRzCCEUMCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBzCMJu/A491jL+
-# Wf9iWiG4CMDeQEQzjzX+RgDvvXOIxqCCDW0wggZyMIIEWqADAgECAghkM1HTxzif
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCCeYQ77E5qbl8K9
+# 3rffeWu76MMwcek0UmvnBP/fYimEn6CCDW0wggZyMIIEWqADAgECAghkM1HTxzif
 # CDANBgkqhkiG9w0BAQsFADB8MQswCQYDVQQGEwJVUzEOMAwGA1UECAwFVGV4YXMx
 # EDAOBgNVBAcMB0hvdXN0b24xGDAWBgNVBAoMD1NTTCBDb3Jwb3JhdGlvbjExMC8G
 # A1UEAwwoU1NMLmNvbSBSb290IENlcnRpZmljYXRpb24gQXV0aG9yaXR5IFJTQTAe
@@ -388,17 +408,17 @@ Function New-uASupportBundle {
 # BAMMK1NTTC5jb20gQ29kZSBTaWduaW5nIEludGVybWVkaWF0ZSBDQSBSU0EgUjEC
 # EH2BzCLRJ8FqayiMJpFZrFQwDQYJYIZIAWUDBAIBBQCggYQwGAYKKwYBBAGCNwIB
 # DDEKMAigAoAAoQKAADAZBgkqhkiG9w0BCQMxDAYKKwYBBAGCNwIBBDAcBgorBgEE
-# AYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAvBgkqhkiG9w0BCQQxIgQgdtXSFwOoYASn
-# bNGkY/AvArQ4bxpWMjJFkTnvQ0q+O/owDQYJKoZIhvcNAQEBBQAEggIAuSHZkiwp
-# owQ+SXV0WCYPwDj29GDqO+SulCp8KcsOswRmfl7FZJmOXldav/OAUYkdnvo/HGWl
-# dcTjhyxtROIRVguDCqDZysMd2deobAL6C299kaPiIuv/+Ui+7decyPRSD9AWvUZu
-# gnphN5gRx6ZYfeP8YHtmIfNvAx1XDF7ZVNwWiKAlGKXUYa8yCemBoE0ZLk1QCM9x
-# tDrzLTSlHC/Gu0SmsQzwa/rWWgjJEcN+bb6ISFp2WL7VhqIuodeP7DOoSSr+7SKm
-# bM1FY0Z+b4FO8EpE8kCb8zhYMAtdW6hwGdw67ihC+cj0+AYEwPR3WA9ZOiFqmSYh
-# E3fzLGDS3/7jNC/fstHigzeSeMM98InW+fBwChJisJOCwR/68+VE9O+O3q0bTRAU
-# iWJnAwB6clx2S5JBRYg7MHIJX8cL/g/l8GauN/vuKni7HPROMS1sOmr43OIFvr7W
-# Z//Ziwz+0emJ2WRDl4JRGZcB6rO8JYYMEDmWaeNMo2jNmE/1+IBLV8nLxhXd3uEt
-# y3GpTDsnCkJUXvjDFn/3VwCRNr26RYhkiC9zvki/JF15I/bOwggQ41FMOk0kn+c1
-# 8BRtdDBhab1Kyl0qAlkG1W3g1eIK3isp5ywYvKy2sQu/RjBgwX63X5tR4kEyVr9w
-# AN1hZ/JyIVr67GbusuMAR2YlIVQzF4/4A2k=
+# AYI3AgELMQ4wDAYKKwYBBAGCNwIBFTAvBgkqhkiG9w0BCQQxIgQg5n5o6aeJh6nE
+# UUciSGTWEIf6IGzeOqkHIqCUCFWKaVEwDQYJKoZIhvcNAQEBBQAEggIAwyf9Z9c3
+# gdyyJKfDSRnRGaJHgc8PfnG+h6Ui+J1U48vibwy2sfKXV5Cv3Z1glAIRvpVo8z0o
+# N6VlglWyg/WO6axcXgrcaNn44jb3eK7XKt5Bmo2EEdntEdG07lEJDTX6rswZpWbu
+# 2YZvg1IT9kCZ1Vn++stTV3MO9Qpkf4QMUzSARYkGRWYPBFx5sPMKxGp/9Jf2ZMoC
+# 47q+TqkDJe+5mHoLEJ0N4EhQN7dAPMiQacS5GKJlgXcGifrCQMsUMp0GzOgh4CPN
+# DtI6w2BjDwsiuHozlECYvei8JJQH+1aWZCj7Tg07LjdtS7FK1xt4s2Zw/ZjcmnXH
+# +K2YAI6yG3igVZt8uR9ujpjk7sCrSe20kAJNwepREZvUTxfS4myZlfp7f+GNIsNt
+# hcfnd27MEYKzLMlXzO2DYhYxDnqcUCrxwddkv4cK57VUQJETkXAMSSpHpmaxFt9T
+# /DSnM6wCGzdrGeakSKipMZ9f16L/VOAEvwlnS+x+byfC0K+O29HfejToHSWrNM2q
+# UQQYzF8VDr3RQz76IS4tOPKBIoPoUvQwoUp+pHkAG+OgXuY7vMn/dCAku0ZvX6oT
+# 7velFC7J8w7zzUnoeN+3DAFCmFTsOWE9dUwkWK2RSoEjNcsxc1e7k/UvIBdyL63+
+# b9XyDDzoDk2EpbtB7bqARd5cZaummKHV+8s=
 # SIG # End signature block

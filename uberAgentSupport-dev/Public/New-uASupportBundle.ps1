@@ -29,22 +29,19 @@ Function New-uASupportBundle {
             else {
                 Write-Verbose "LogPath found in 'HKLM:\SOFTWARE\Policies\vast limits\uberAgent\LogConfig'." -Verbose
             }
-            if (-not $LogPath)
-            {
+            if (-not $LogPath) {
                 Write-Verbose "LogPath not found in 'HKLM:\SOFTWARE\vast limits\uberAgent\LogConfig'. Using default path." -Verbose
                 $LogPath = "$env:windir\temp"
             }
-            else
-            {
+            else {
                 Write-Verbose "LogPath found in 'HKLM:\SOFTWARE\Policies\vast limits\uberAgent\LogConfig'." -Verbose
             }
-            
+
             $ResolvedLogPath = [System.Environment]::ExpandEnvironmentVariables($LogPath)
             Write-Verbose "Resolved log path: $ResolvedLogPath" -Verbose
 
             # Test access to log path
-            if (-not $(Test-Path -Path $ResolvedLogPath))
-            {
+            if (-not $(Test-Path -Path $ResolvedLogPath)) {
                 Throw "Log path '$ResolvedLogPath' not found. Please check the log path configuration or verify that you have the permissions to access the log path."
             }
 
@@ -52,7 +49,8 @@ Function New-uASupportBundle {
             $uAServiceConfigurationLogs = [System.IO.Path]::Combine($ResolvedLogPath, "uberAgentServiceConfig*.log")
             if (Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList') {
                 $ProfilesDirectory = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList' -Name ProfilesDirectory
-            } else {
+            }
+            else {
                 Throw "Registry key 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList' not found."
             }
             $uAInSessionHelperLog = [System.IO.Path]::Combine($ResolvedLogPath, "uAInSessionHelper.log")
@@ -63,11 +61,28 @@ Function New-uASupportBundle {
             $OperatingSystem = (Get-CimInstance -Class Win32_OperatingSystem).caption
             $DesktopPath = [Environment]::GetFolderPath('Desktop')
             $OSBitness = $env:PROCESSOR_ARCHITECTURE
-            $Processes = @('uberAgent','uAInSessionHelper')
-            $UninstallPaths = @('HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
-            $uberAgentInstallDir = ($UninstallPaths | ForEach-Object {Get-ItemProperty $_} | Where-Object Displayname -match "uberAgent").InstallLocation
+            $Processes = @('uberAgent', 'uAInSessionHelper')
+            $UninstallPaths = @('HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')
+
+            # Check if the given registry paths exist and filter out those that do not.
+            $UninstallPaths = $UninstallPaths | Where-Object { Test-Path $_ }
+
+            # Verify if there is at least one valid uninstall path.
+            if (-not $UninstallPaths) {
+                Write-Error "No valid uninstall path was found."
+                exit 1
+            }
+
+            $uberAgentInstallDir = ($UninstallPaths | ForEach-Object { Get-ItemProperty $_ } | Where-Object Displayname -match "uberAgent").InstallLocation
+
+            # Check if an uberAgent installation has been found.
+            if (-not $uberAgentInstallDir) {
+                Write-Error "No uberAgent installation found."
+                exit 1
+            }
+
             $SplunkUFservice = "SplunkForwarder"
-            $ExcludeExecutablesAndLibraries = @('*.exe','*.dll','*.sys','*.msi')
+            $ExcludeExecutablesAndLibraries = @('*.exe', '*.dll', '*.sys', '*.msi')
 
             $RegKeysx86 = @(
                 [PSCustomObject]@{Component = 'Service'; Path = 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\vast limits' }
@@ -98,12 +113,12 @@ Function New-uASupportBundle {
             If ($OSBitness -eq 'AMD64') { $RegKeys = $RegKeysx64 } Else { $RegKeys = $RegKeysx86 }
 
             If ((Get-Service).Name -contains $SplunkUFservice) {
-               $SplunkUFinstalled = $True
-               $SplunkUFInstallDir = (($UninstallPaths | ForEach-Object {Get-ItemProperty $_} | Where-Object Displayname -match "UniversalForwarder").InstallLocation).TrimEnd("\")
-               $Processes += 'splunkd'
+                $SplunkUFinstalled = $True
+                $SplunkUFInstallDir = (($UninstallPaths | ForEach-Object { Get-ItemProperty $_ } | Where-Object Displayname -match "UniversalForwarder").InstallLocation).TrimEnd("\")
+                $Processes += 'splunkd'
             }
             Else {
-               $SplunkUFinstalled = $False
+                $SplunkUFinstalled = $False
             }
 
             # Check for latest module version
@@ -150,11 +165,17 @@ Function New-uASupportBundle {
             Copy-uAItem -Source $uAInSessionHelperLog -Destination "$WorkingDirectory\uAInSessionHelper"
 
             Write-Verbose 'Collect Chrome/Firefox browser extension in-session helper logs for all sessions' -Verbose
-            
-
             foreach ($UserProfile in $UserProfiles) {
                 $src = [System.IO.Path]::Combine($ProfilesDirectory, $UserProfile, "AppData\Local\Temp\uAInSessionHelper.log")
                 $dst = [System.IO.Path]::Combine($WorkingDirectory, "Browser", "uAInSessionHelper-$UserProfile.log")
+
+                Copy-uAItem -Source $src -Destination $dst
+            }
+
+            Write-Verbose 'Collect Config and Support Tool log' -Verbose
+            foreach ($UserProfile in $UserProfiles) {
+                $src = [System.IO.Path]::Combine($ProfilesDirectory, $UserProfile, "AppData\Local\Temp\uAConfigSupportTool.log")
+                $dst = [System.IO.Path]::Combine($WorkingDirectory, "uAConfigSupportTool", "uAConfigSupportTool-$UserProfile.log")
 
                 Copy-uAItem -Source $src -Destination $dst
             }
@@ -182,7 +203,7 @@ Function New-uASupportBundle {
                 }
             }
 
-            If($SplunkUFinstalled) {
+            If ($SplunkUFinstalled) {
                 Write-Verbose 'Collect Splunk Universal Forwarder logs' -Verbose
 
                 $src = [System.IO.Path]::Combine($SplunkUFInstallDir, "var\log\splunk\splunkd.log")
@@ -206,7 +227,7 @@ Function New-uASupportBundle {
             $src = [System.IO.Path]::Combine($env:programdata, "vast limits\uberAgent\Configuration\*")
             $dst = [System.IO.Path]::Combine($WorkingDirectory, "Config\ProgramData")
             Copy-uAItem -Source $src -Destination $dst -Recurse -Exclude $ExcludeExecutablesAndLibraries
-            
+
             $src = [System.IO.Path]::Combine($uberAgentInstallDir, "*")
             $dst = [System.IO.Path]::Combine($WorkingDirectory, "Config\ProgramFiles")
             Copy-uAItem -Source $src -Destination $dst -Recurse -Exclude $ExcludeExecutablesAndLibraries
@@ -214,8 +235,7 @@ Function New-uASupportBundle {
             if ((Get-ItemProperty -Path "HKLM:\SOFTWARE\vast limits\uberAgent\Config" -Name ConfigFilePath -ErrorAction SilentlyContinue) -OR (Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\vast limits\uberAgent\Config" -Name ConfigFilePath -ErrorAction SilentlyContinue)) {
                 # CCFM is active
                 $ConfigCachePath = (Get-ItemProperty -Path "HKLM:\SOFTWARE\vast limits\uberAgent\CCFM" -Name ConfigCachePath).ConfigCachePath
-                if ($ConfigCachePath)
-                {
+                if ($ConfigCachePath) {
                     $src = [System.IO.Path]::Combine($ConfigCachePath, "*")
                     $dst = [System.IO.Path]::Combine($WorkingDirectory, "Config\CCFM")
                     Copy-uAItem -Source $src -Destination $dst -Recurse -Exclude $ExcludeExecutablesAndLibraries
@@ -226,7 +246,7 @@ Function New-uASupportBundle {
 
             }
 
-            If($SplunkUFinstalled) {
+            If ($SplunkUFinstalled) {
                 Write-Verbose 'Collect Splunk Universal Forwarder configuration files' -Verbose
 
                 $src = [System.IO.Path]::Combine($SplunkUFInstallDir, "etc\system\local\inputs.conf")
@@ -302,7 +322,7 @@ Function New-uASupportBundle {
                 else {
                     Write-Error "Failed to delete working directory '$WorkingDirectory'"
                 }
-                
+
             }
         }
     }
